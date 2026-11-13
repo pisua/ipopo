@@ -15,6 +15,7 @@ init_config
 log
 http
 http_async
+http_fastapi
 http_routing
 security
 remote_services

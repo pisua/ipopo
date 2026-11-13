@@ -252,6 +252,14 @@ Unreleased
 
 ### HTTP service
 
+* New FastAPI HTTP service (`pelix.http.fastapi` bundle, factory
+  `pelix.http.service.fastapi.factory`, `fastapi` extra), served by uvicorn.
+  It handles the same servlets as the async service (sync, async, WebSocket)
+  and the FastAPI routers provided as `pelix.http.fastapi.router` services:
+  a router is mounted when its service is registered and removed when it is
+  unregistered, the OpenAPI schema following. The checks of the HTTP service
+  (`Host`, `Origin`, CORS, authentication, body size, trusted proxies) apply to
+  the routes, which run as the subject of the request. Its stop is bounded
 * HTTP sessions and login, for browsers: with `pelix.http.session.enabled`, a
   servlet gets the `HttpSession` of its request with `get_session(create)`, and
   calls `login(user, password)` and `logout()`. The password goes through

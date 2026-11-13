@@ -45,7 +45,6 @@ import aiohttp.client_exceptions
 import aiohttp.web
 from multidict import CIMultiDict
 
-import pelix.constants as fw_constants
 from pelix import http, utilities
 from pelix.http._base import (
     DEFAULT_BIND_ADDRESS,
@@ -56,6 +55,7 @@ from pelix.http._base import (
     RequestRouting,
     SessionContext,
     compute_sub_path,
+    format_sse_event,
 )
 from pelix.internals.registry import ServiceReference
 from pelix.ipopo.decorators import (
@@ -608,33 +608,8 @@ class _AsyncHTTPServletResponse(http.AbstractAsyncHTTPServletResponse):
         if not self._sse_set:
             raise OSError("SSE not set up, call setup_sse() first")
 
-        # Prepare the SSE message
-        parts: list[str] = []
-        if id:
-            parts.append(f"id: {id}")
-        elif id is not None:
-            # Reset ID
-            parts.append("id")
-
-        if event:
-            parts.append(f"event: {event}")
-        elif event is not None:
-            parts.append("event")
-
-        if data:
-            # Split the data into lines and prefix each line with "data: "
-            for line in data.splitlines() or [""]:
-                parts.append(f"data: {line}")
-        else:
-            # Empty data line
-            parts.append("data")
-
-        # End of the event
-        parts.append("")
-        parts.append("")
-
         try:
-            await self.write("\n".join(parts).encode("utf-8"))
+            await self.write(format_sse_event(event, data, id))
         except aiohttp.client_exceptions.ClientConnectionResetError:
             raise OSError("Client connection reset during SSE send") from None
 
@@ -1295,86 +1270,6 @@ class AsyncHttpServiceImpl(AbstractHttpService):
         :param servlet_type: The type of the servlet being registered
         """
         parameters[http.PARAM_ASYNC] = servlet_type != http.ServletType.SYNC
-
-    def _register_servlet_service(
-        self,
-        service: http.Servlet | http.AsyncServlet | http.WebSocketHandler,
-        service_reference: ServiceReference[Any],
-    ) -> None:
-        """
-        Registers a servlet according to its service properties
-
-        :param service: A servlet service
-        :param service_reference: The associated ServiceReference
-        """
-        spec = cast(list[str], service_reference.get_property(fw_constants.OBJECTCLASS))
-        if http.HTTP_SERVLET in spec:
-            # Servlet bound
-            sync_servlet = service
-            paths = service_reference.get_property(http.HTTP_SERVLET_PATH)
-            if utilities.is_string(paths):
-                # Register the servlet to a single path
-                self.register_servlet(
-                    paths,
-                    sync_servlet,
-                    self._get_servlet_parameters(service_reference),
-                    http.ServletType.SYNC,
-                )
-            elif isinstance(paths, (list, tuple)):
-                # Register the servlet to multiple paths
-                for path in paths:
-                    self.register_servlet(
-                        path,
-                        sync_servlet,
-                        self._get_servlet_parameters(service_reference),
-                        http.ServletType.SYNC,
-                    )
-
-        # No else here: a service could implement both specifications
-        if http.HTTP_SERVLET_ASYNC in spec:
-            # Asynchronous servlet bound
-            async_servlet = service
-            paths = service_reference.get_property(http.HTTP_SERVLET_ASYNC_PATH)
-            if utilities.is_string(paths):
-                # Register the servlet to a single path
-                self.register_servlet(
-                    paths,
-                    async_servlet,
-                    self._get_servlet_parameters(service_reference),
-                    http.ServletType.ASYNC,
-                )
-            elif isinstance(paths, (list, tuple)):
-                # Register the servlet to multiple paths
-                for path in paths:
-                    self.register_servlet(
-                        path,
-                        async_servlet,
-                        self._get_servlet_parameters(service_reference),
-                        http.ServletType.ASYNC,
-                    )
-
-        # No else here: a service could implement both specifications
-        if http.HTTP_WEBSOCKET_HANDLER in spec:
-            # WebSocket handler bound
-            websocket_handler = cast(http.WebSocketHandler, service)
-            paths = service_reference.get_property(http.HTTP_WEBSOCKET_PATH)
-            if utilities.is_string(paths):
-                # Register the WebSocket handler to a single path
-                self.register_servlet(
-                    paths,
-                    websocket_handler,
-                    self._get_servlet_parameters(service_reference),
-                    http.ServletType.WEBSOCKET,
-                )
-            elif isinstance(paths, (list, tuple)):
-                # Register the WebSocket handler to multiple paths
-                for path in paths:
-                    self.register_servlet(
-                        path,
-                        websocket_handler,
-                        self._get_servlet_parameters(service_reference),
-                        http.ServletType.WEBSOCKET,
-                    )
 
     @BindField("_servlets_services")
     @BindField("_servlets_async_services")

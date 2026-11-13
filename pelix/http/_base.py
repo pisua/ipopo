@@ -48,6 +48,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any, cast
 
+import pelix.constants as fw_constants
 import pelix.remote
 from pelix import http, utilities
 from pelix.http import auth, cors
@@ -71,6 +72,7 @@ __all__ = [
     "HTTP_SERVICE_EXTRA",
     "LOCALHOST_ADDRESS",
     "LOOPBACK_HOST_NAMES",
+    "SERVLET_KINDS",
     "SERVLET_PARAMETERS",
     "SESSION_USER",
     "AbstractHttpService",
@@ -79,6 +81,7 @@ __all__ = [
     "SessionContext",
     "SessionManager",
     "compute_sub_path",
+    "format_sse_event",
     "normalize_allowed_hosts",
     "normalize_max_body_size",
     "normalize_request_path",
@@ -138,6 +141,13 @@ Properties of a servlet service which are copied in the parameters of its
 registration, i.e. which a servlet can use to override a configuration of the
 HTTP service
 """
+
+SERVLET_KINDS = (
+    (http.HTTP_SERVLET, http.HTTP_SERVLET_PATH, http.ServletType.SYNC),
+    (http.HTTP_SERVLET_ASYNC, http.HTTP_SERVLET_ASYNC_PATH, http.ServletType.ASYNC),
+    (http.HTTP_WEBSOCKET_HANDLER, http.HTTP_WEBSOCKET_PATH, http.ServletType.WEBSOCKET),
+)
+""" Servlet specifications: (specification, property giving its paths, type of servlet) """
 
 # ------------------------------------------------------------------------------
 
@@ -215,6 +225,41 @@ def normalize_request_path(raw_path: str) -> str:
         normalized += "/"
 
     return normalized
+
+
+def format_sse_event(event: str | None = None, data: str | None = None, id: str | None = None) -> bytes:
+    """
+    Formats a Server-Sent Event (see ``send_sse()`` of the asynchronous responses)
+
+    :param event: Optional event type (e.g., "message", "update"), "" to reset it
+    :param data: The event data, split in one ``data`` line per line
+    :param id: Optional event ID (set to "" to reset the ID)
+    :return: The event, as sent on the stream
+    """
+    parts: list[str] = []
+    if id:
+        parts.append(f"id: {id}")
+    elif id is not None:
+        # Reset ID
+        parts.append("id")
+
+    if event:
+        parts.append(f"event: {event}")
+    elif event is not None:
+        parts.append("event")
+
+    if data:
+        # Split the data into lines and prefix each line with "data: "
+        for line in data.splitlines() or [""]:
+            parts.append(f"data: {line}")
+    else:
+        # Empty data line
+        parts.append("data")
+
+    # End of the event
+    parts.append("")
+    parts.append("")
+    return "\n".join(parts).encode("utf-8")
 
 
 def compute_sub_path(full_path: str, prefix: str) -> str:
@@ -1540,14 +1585,30 @@ class AbstractHttpService(http.HTTPService):
         self, service: AnyServlet, service_reference: ServiceReference[Any]
     ) -> None:
         """
-        Registers a servlet according to its service properties.
-        Implemented by the subclasses, as they do not support the same kinds of
-        servlet.
+        Registers a servlet according to its service properties: on the paths
+        of each servlet specification it provides (sync, async, WebSocket).
+        Overridden by the implementations which don't support them all.
 
         :param service: A servlet service
         :param service_reference: The associated ServiceReference
         """
-        raise NotImplementedError
+        specs = cast(list[str], service_reference.get_property(fw_constants.OBJECTCLASS))
+        # No else: a service can provide several specifications
+        for spec, path_property, servlet_type in SERVLET_KINDS:
+            if spec not in specs:
+                continue
+
+            paths = service_reference.get_property(path_property)
+            if utilities.is_string(paths):
+                paths = [paths]
+            elif not isinstance(paths, (list, tuple)):
+                continue
+
+            for path in paths:
+                # Each registration must get its own parameters dictionary
+                self.register_servlet(
+                    path, service, self._get_servlet_parameters(service_reference), servlet_type
+                )
 
     def _on_bind(self, service: AnyServlet, service_reference: ServiceReference[Any]) -> None:
         """

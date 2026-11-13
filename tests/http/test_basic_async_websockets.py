@@ -66,6 +66,9 @@ class RecordingHandler(http.AbstractWebSocketHandler):
 
 
 class WebSocketTestCase(unittest.TestCase):
+    http_bundle = "pelix.http.basic_async"
+    http_factory = http.FACTORY_HTTP_ASYNC
+
     http_server: http.HTTPService
     handler: http.WebSocketHandler | None = None
     ws_url: str
@@ -79,7 +82,7 @@ class WebSocketTestCase(unittest.TestCase):
         cls.framework = create_framework(
             (
                 "pelix.ipopo.core",
-                "pelix.http.basic_async",
+                cls.http_bundle,
             )
         )
         cls.framework.start()
@@ -89,7 +92,7 @@ class WebSocketTestCase(unittest.TestCase):
             cls.http_server = cast(
                 http.HTTPService,
                 ipopo.instantiate(
-                    http.FACTORY_HTTP_ASYNC,
+                    cls.http_factory,
                     "async.ws.server",
                     {
                         http.HTTP_SERVICE_ADDRESS: "localhost",
@@ -121,7 +124,7 @@ class WebSocketTestCase(unittest.TestCase):
         name = f"async.ws.server.{self._testMethodName}"
         with use_ipopo(self.framework.get_bundle_context()) as ipopo:
             server = ipopo.instantiate(
-                http.FACTORY_HTTP_ASYNC,
+                self.http_factory,
                 name,
                 {http.HTTP_SERVICE_ADDRESS: "localhost", http.HTTP_SERVICE_PORT: 0, **properties},
             )

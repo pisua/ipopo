@@ -58,6 +58,7 @@ __all__ = [
     "FACTORY_HTTP_AUTH_BASIC",
     "FACTORY_HTTP_BASIC",
     "FACTORY_HTTP_CORS",
+    "FACTORY_HTTP_FASTAPI",
     "HTTPS_CERT_FILE",
     "HTTPS_KEY_FILE",
     "HTTPS_KEY_PASSWORD",
@@ -394,6 +395,12 @@ FACTORY_HTTP_BASIC = "pelix.http.service.basic.factory"
 
 FACTORY_HTTP_ASYNC = "pelix.http.service.async.factory"
 """ Name of the Async HTTP service component factory """
+
+FACTORY_HTTP_FASTAPI = "pelix.http.service.fastapi.factory"
+"""
+Name of the component factory of the HTTP service based on FastAPI and uvicorn,
+which also serves FastAPI routers (see :mod:`pelix.http.fastapi`)
+"""
 
 FACTORY_HTTP_AUTH_BASIC = "pelix.http.auth.basic.factory"
 """

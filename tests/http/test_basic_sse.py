@@ -23,6 +23,9 @@ from tests.http.utils import async_test
 
 
 class SSETestCase(unittest.TestCase):
+    http_bundle = "pelix.http.basic_async"
+    http_factory = http.FACTORY_HTTP_ASYNC
+
     SSE_ENDPOINT = "/sse"
     SSE_PORT = 8081
 
@@ -32,7 +35,7 @@ class SSETestCase(unittest.TestCase):
         asyncio.set_event_loop(asyncio.new_event_loop())
 
         # Create the framework and start it
-        cls.framework = create_framework(("pelix.ipopo.core", "pelix.http.basic_async"))
+        cls.framework = create_framework(("pelix.ipopo.core", cls.http_bundle))
         cls.framework.start()
         ctx = cls.framework.get_bundle_context()
 
@@ -40,7 +43,7 @@ class SSETestCase(unittest.TestCase):
             cls.http_service = cast(
                 http.HTTPService,
                 ipopo.instantiate(
-                    http.FACTORY_HTTP_ASYNC,
+                    cls.http_factory,
                     "async.ws.server",
                     {
                         http.HTTP_SERVICE_ADDRESS: "localhost",

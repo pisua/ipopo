@@ -55,6 +55,9 @@ class AsyncBackendContextTest(unittest.TestCase):
     to be free
     """
 
+    http_bundle = "pelix.http.basic_async"
+    http_factory = http.FACTORY_HTTP_ASYNC
+
     framework: Framework
     ipopo: IPopoService
 
@@ -68,12 +71,12 @@ class AsyncBackendContextTest(unittest.TestCase):
         self.servlet = ContextServlet()
 
         context = self.framework.get_bundle_context()
-        context.install_bundle("pelix.http.basic_async").start()
+        context.install_bundle(self.http_bundle).start()
 
         service = cast(
             http.HTTPService,
             self.ipopo.instantiate(
-                http.FACTORY_HTTP_ASYNC,
+                self.http_factory,
                 "test-http-context",
                 {http.HTTP_SERVICE_ADDRESS: DEFAULT_HOST, http.HTTP_SERVICE_PORT: 0},
             ),
